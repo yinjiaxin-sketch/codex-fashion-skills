@@ -1,0 +1,6 @@
+interface:
+  display_name: "Image Edit Director"
+  short_description: "Create strict prompts for garment and person replacement edits."
+  default_prompt: "Use $image-edit-director to create a strict image editing prompt for my reference images."
+policy:
+  allow_implicit_invocation: true
