@@ -37,6 +37,22 @@ The script installs the skill to:
 
 Restart Codex after installation if the skill does not appear immediately.
 
+## Publish To GitHub
+
+If this folder is not already connected to GitHub, create an empty GitHub repository first, then run these commands inside the `image-edit-director-github` folder:
+
+```powershell
+git remote add origin https://github.com/<owner>/<repo>.git
+git push -u origin main
+```
+
+If the remote already exists:
+
+```powershell
+git remote set-url origin https://github.com/<owner>/<repo>.git
+git push -u origin main
+```
+
 ## Manual Install
 
 Copy:
