@@ -1,6 +1,6 @@
 ---
 name: image-edit-director
-description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, pose, background, clothing details, garment length, accessories, props, face clarity, or preventing models from mixing image roles.
+description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, accessories, props, face clarity, or preventing models from mixing image roles.
 ---
 
 # Image Edit Director
@@ -19,6 +19,7 @@ Always optimize for:
 - locking what may change and what must not change
 - preserving or replacing face identity according to the selected mode
 - preserving garment category, silhouette, length, fit, graphic, logo, print, fabric, seams, hem, and construction details
+- preserving scene target pose, body action, hand gesture, head angle, and explicitly requested scene-worn accessories such as caps, hats, sunglasses, glasses, watches, or handheld props
 - preventing stiff mannequin poses in scene replacement
 - preventing accidental inheritance from the wrong image
 - giving short repair prompts for likely failures
@@ -76,7 +77,7 @@ For `garment-replacement`:
 
 For `person-to-scene-replacement`:
 
-- Scene image provides environment, background, camera, lighting, composition, target placement, scale, depth, occlusion, broad pose, posture, action, contact points, and scene props.
+- Scene image provides environment, background, camera, lighting, composition, target placement, scale, depth, occlusion, broad pose, posture, action, head angle, body lean, arm position, hand gesture, contact points, scene props, and any explicitly preserved scene-worn styling items.
 - Person or dressed-model reference provides identity, full face, facial geometry, hair, skin tone, body traits, final outfit, shoes, accessories, tattoos, carried props, and styling.
 - If a scene target's face is visible, set `scene face retention = 0%`.
 - If using a dressed-model reference, set `scene clothing retention = 0%`.
@@ -161,7 +162,7 @@ For each target person, write a target contract:
 - `face source`: dressed-model source only
 - `hair source`: dressed-model source only
 - `outfit source`: dressed-model source only
-- `accessory source`: dressed-model source only
+- `accessory source`: dressed-model source by default; scene target only for explicitly preserved scene-worn styling items such as cap, hat, sunglasses, glasses, watch, bracelet, or handheld prop
 - `background source`: scene only
 - `scene face retention = 0%`
 - `scene clothing retention = 0%`
@@ -169,6 +170,46 @@ For each target person, write a target contract:
 Full face replacement means replacing visible face identity, face shape, eyes, eyelids, eyebrows, nose, mouth, lips, jawline, cheekbones, skin tone, hairline, visible ears, and hairstyle boundary. The scene face may provide only head position, head scale, head direction, occlusion, and lighting adaptation.
 
 If the reference person already wears the target clothes, treat the whole visible outfit as final: top, pants, shoes, graphics, back print, front print, wash texture, seams, labels, jewelry, chains, tattoos, keychain, hanging accessories, and carried props.
+
+## Scene Pose And Scene-Worn Styling Protocol
+
+Use this protocol when the user wants the reference person to replace a scene person but still keep the scene target's pose, body action, hand gesture, hat, sunglasses, glasses, or other styling items.
+
+Do not treat every scene-worn accessory as forbidden. Some items belong to the scene target's styling and should stay even while the face, body identity, and clothing are replaced.
+
+Before writing the final prompt, classify each visible scene item:
+
+- `scene pose to keep`: body lean, head tilt, shoulder angle, arm lift, hand gesture, finger sign, leg stance, weight shift, foot direction, sitting/standing/crouching/leaning state, and contact with floor or props.
+- `scene-worn styling to keep`: cap, hat, sunglasses, glasses, mask, gloves, watch, bracelet, ring, belt, chain, scarf, or other accessory the user says should stay from the scene target.
+- `scene clothing to remove`: shirt, pants, shoes, jacket, garment graphic, garment logo, and outfit styling from the scene target when using a dressed-model reference, unless the user explicitly says to preserve them.
+- `reference identity to inherit`: face, facial features, hair, skin tone, body traits, final outfit, shoes, and reference-owned accessories not overridden by scene-worn styling preservation.
+
+When preserving scene-worn styling items, write them by name in the target map. Example:
+
+```text
+scene-worn styling preserved from target: black backward cap, transparent sunglasses
+identity source: reference female model only
+outfit source: reference female model only
+pose source: scene male target only
+```
+
+If a scene target wears a cap or sunglasses and the user complains they disappeared, future prompts must state:
+
+- Keep the scene target's cap/hat/sunglasses/glasses as scene-worn styling.
+- Adapt those accessories onto the reference person's head and face naturally.
+- Preserve the reference person's face identity underneath/around the accessory.
+- Do not let the accessory change the reference identity.
+- Do not remove the accessory unless the user says the reference person's own head styling should override it.
+
+For distinctive pose transfer, do not write only "keep broad pose." Name the visible action exactly. Examples:
+
+- `keep the torso leaning left`
+- `keep the head tilted downward`
+- `keep both arms raised beside the shoulders`
+- `keep both hands forming the same finger gesture`
+- `keep the asymmetrical streetwear stance`
+
+The reference model's studio pose must not overwrite these scene pose details unless the user explicitly asks for reference-pose transfer.
 
 ## Natural Pose And Behavior Protocol
 
@@ -224,6 +265,8 @@ Diagnose the failure and strengthen only the relevant constraint:
 - dressed-model outfit did not transfer: scene clothing retention is `0%`; dressed-model outfit retention is `100%`
 - accessories disappeared: list each accessory separately; generic "accessories" is insufficient
 - pose stiff: keep location and broad orientation, but allow only small naturalized shoulders, weight, feet, knees, head angle, and hand placement
+- scene pose missing: restate the exact scene pose elements to keep, including body lean, head tilt, arm lift, hand gesture, finger sign, leg stance, and weight shift; forbid importing the reference studio pose
+- scene-worn accessory missing: restate the exact accessory names to preserve from the scene target, such as black backward cap and transparent sunglasses; adapt them onto the reference person while preserving the reference face and outfit
 - behavior inappropriate: name hand owner and move unclear hands to side, pocket, or safe contact zones
 - image blurry/noisy: require face-level and garment-level sharpness while preserving the same edit constraints
 
