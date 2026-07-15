@@ -1,6 +1,6 @@
 interface:
   display_name: "Image Edit Director"
-  short_description: "Create strict prompts for garment, dressed-model, face, and scene replacement edits."
-  default_prompt: "Use $image-edit-director to create a strict two-stage fashion image editing prompt for garment-to-model and dressed-model-to-scene replacement."
+  short_description: "Create strict prompts for garment, dressed-model, face, scene, pose, and group behavior edits."
+  default_prompt: "Use $image-edit-director to create a strict fashion image editing prompt with face, outfit, pose, hand ownership, and natural group behavior constraints."
 policy:
   allow_implicit_invocation: true

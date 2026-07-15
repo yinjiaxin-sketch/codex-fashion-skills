@@ -17,6 +17,7 @@ Always optimize for:
 - naming the actual people, poses, garments, props, and background elements visible in the scene
 - separating what the scene image controls from what each reference image controls
 - recognizing whether the person reference is a raw model, a garment reference, or a dressed model already wearing the target outfit
+- preventing stiff mannequin poses, awkward social behavior, and unclear hand ownership after replacement
 - choosing the fastest combined prompt that still matches the scene
 - attaching targeted repair prompts for only the high-risk parts
 
@@ -231,6 +232,7 @@ Pose policy:
 - If the user says to keep the scene pose, preserve the original scene person's pose, gesture, body orientation, and location while replacing identity and appearance.
 - If the user says to inherit the reference pose, action, gesture, or expression, transfer those from the reference person and adapt them to the scene perspective.
 - If the user does not specify pose, default to preserving the scene person's location and broad body pose, while using the reference person's identity, face, clothing, accessories, and props.
+- If the result tends to become stiff or "standing like a mannequin", preserve the scene target's location, scale, orientation, and contact points, but allow small pose naturalization: relaxed shoulders, slight weight shift, small knee bend, natural head angle, natural hand placement, and plausible spacing between bodies. Do not import the studio reference pose.
 
 Allowed edit area:
 
@@ -267,6 +269,28 @@ When a visible face fails, repair it with a face-lock pass before changing cloth
 
 When clothing fails in pass 2, repair the target person's whole visible clothing region from the dressed-model source. Do not use the scene person's original shirt, pants, shoes, logo, print, or accessories. If the dressed-model source has a large back graphic, front graphic, skull graphic, typography, logo, wash texture, stripe, patch, chain, pendant, ring, tattoo, or hanging accessory, treat it as intentional and preserve it unless the user says it is wrong.
 
+## Natural Pose And Behavior Protocol
+
+Use this protocol when replaced people look stiff, line up like mannequins, stand too straight, face walls unnaturally, or create awkward social contact.
+
+For every target person in a group scene, include a behavior contract:
+
+- `location lock`: keep the target's scene position, scale, ground contact, and scene layer.
+- `orientation lock`: keep the target's broad facing direction: front, side, back, side-back, seated, crouching, leaning, or walking.
+- `pose flexibility`: allow only small natural adjustments that improve realism without changing the scene composition.
+- `weight and stance`: require asymmetric weight, relaxed shoulders, non-parallel feet, or slight knee bend when the target is standing.
+- `hand ownership`: every visible hand must belong to a named target. Do not create unowned hands.
+- `contact owner`: if a hand touches another person, name whose hand it is and where it touches.
+- `safe contact zones`: shoulder, upper arm, outer forearm, or upper back only, unless the original scene clearly shows another safe contact.
+- `forbidden contact zones`: face, neck, chest, waist, crotch, inner thigh, or any ambiguous intimate area.
+- `social plausibility`: keep a casual editorial group behavior; avoid grabbing, restraining, pushing, awkward hovering hands, or hands passing through bodies.
+
+Do not solve stiffness by adding dramatic gestures. Use low-risk micro-actions: one hand in pocket, hand resting naturally at side, relaxed elbow bend, slight lean toward the group, head turned toward another person, or hand resting lightly on a shoulder or upper arm when appropriate.
+
+When the scene has an existing interaction, preserve its intent but clean up the anatomy and contact. Example: if a scene person has an arm across another person's shoulder, keep it as a casual shoulder rest only if the hand origin is clear and the hand lands on shoulder or upper arm. Otherwise move the hand to the owner's side, pocket, or a clearly visible safe contact zone.
+
+When the scene does not show a clear original interaction, do not invent intimate touch. Keep spacing natural and editorial.
+
 ## Multi-Person Scene Protocol
 
 Use this protocol whenever a scene contains more than one target person. Do not write a single generic "replace all people" prompt for a multi-person scene.
@@ -302,6 +326,8 @@ The main batch prompt must include these hard constraints:
 - Keep the exact same number of people as the scene image.
 - Do not add new people, duplicate people, remove people, or merge people.
 - Each target person keeps the scene position, pose, gesture, body direction, and contact relationship.
+- Each standing target must avoid mannequin stiffness: require relaxed shoulders, slight weight shift, natural hand placement, and non-identical stance unless the scene intentionally shows a rigid lineup.
+- Every hand must have a named owner and a plausible contact target. Remove or neutralize unclear, floating, or socially awkward hands.
 - Each visible target face has `scene face retention = 0%`.
 - Each target person's scene clothing has `scene clothing retention = 0%` when using dressed-model references.
 - Each target person's full visible outfit, shoes, graphics, accessories, tattoos, and props come from the assigned dressed-model reference.
@@ -328,6 +354,7 @@ Person-to-scene final prompt template:
 
 姿势策略：
 [保留场景图原人物的位置和大姿势 / 继承参考图的动作、姿势、手势和表情，并适配到场景透视中]。
+如果替换后人物容易站桩，保留场景人物的位置、画面比例、大朝向、前后层次和接触点，但允许小幅自然化姿态：肩膀放松、重心偏向一侧、脚位不完全平行、膝盖轻微弯曲、头部有自然角度、手部自然落在身体侧边/口袋/安全接触区域。不要把参考图棚拍站姿带入场景。
 
 只允许修改：
 只允许修改场景图中的目标人物区域，以及人物与地面或物体接触产生的必要阴影和反射。不要修改背景、建筑、家具、道路、天空、灯光、镜头角度或构图。
@@ -342,9 +369,10 @@ Person-to-scene final prompt template:
 
 融合要求：
 参考人物必须自然融入场景，匹配场景图的光线、阴影、透视、清晰度、色温、镜头焦段和空间尺度。人物边缘自然，接触阴影合理，不能像贴上去。
+多人行为必须自然合理。每只可见手都必须属于明确人物；如果手接触别人，只允许自然轻放在肩膀、上臂、外侧前臂或上背部。不要出现抓脖子、碰脸、压胸、摸腰、贴胯、穿模、悬空手、来源不明的手或像被控制/拉扯的姿势。
 
 禁止项：
-不要保留场景图原人物的脸、五官、身份、衣服、鞋子、配饰或道具。不要把场景原脸和参考脸混合。不要只换发型不换五官。不要只换衣服不换脸。不要只换脸不换衣服。不要改变场景背景。不要丢失参考人物的脸部特征、配饰、道具、服装细节。不要把参考衣服简化成普通纯色T恤。不要让脸部模糊。不要增加面部噪点。不要让五官漂移。不要产生多余手指、扭曲手部、身体比例异常或衣服图案变形。
+不要保留场景图原人物的脸、五官、身份、衣服、鞋子、配饰或道具。不要把场景原脸和参考脸混合。不要只换发型不换五官。不要只换衣服不换脸。不要只换脸不换衣服。不要改变场景背景。不要丢失参考人物的脸部特征、配饰、道具、服装细节。不要把参考衣服简化成普通纯色T恤。不要让脸部模糊。不要增加面部噪点。不要让五官漂移。不要产生多余手指、扭曲手部、身体比例异常或衣服图案变形。不要让所有人物站成僵硬直线。不要让站姿人物双脚完全平行、双臂僵直、肩膀耸紧、眼神空洞。不要生成不合适触碰、来源不明的手、悬空手、穿过身体的手或像抓住/限制他人的动作。
 
 质量验收：
 替换后人物必须是参考图人物；脸部清晰自然；五官稳定；皮肤纹理干净；配饰和道具完整；人物与场景光影一致；画面高清、低噪点、真实自然。
@@ -360,7 +388,9 @@ When the user reports a bad result, diagnose by failure type and strengthen only
 - Garment logo, pattern, or structure disappeared: enumerate the missing details as core garment construction that must be preserved.
 - Dressed-model outfit did not transfer in `person-to-scene-replacement`: state that scene clothing retention is zero; the assigned dressed-model reference provides the whole visible outfit, including shirt, pants, shoes, graphics, logos, front/back prints, wash texture, jewelry, chains, tattoos, and props.
 - Accessories or props disappeared: list each visible item individually and state that generic accessory preservation is insufficient.
-- Pose is wrong: explicitly set the pose policy to scene-pose or reference-pose.
+- Pose is wrong: explicitly set the pose policy to scene-pose, reference-pose, or scene-location-with-naturalized-micro-pose. Use the third option when the person is in the right place but looks stiff.
+- Person looks stiff or stands like a mannequin: preserve identity, outfit, background, location, scale, and broad orientation; only adjust shoulders, weight shift, feet angle, knees, head angle, arm relaxation, and hand placement into a casual scene-appropriate pose.
+- Behavior or touching is inappropriate: identify the owner of every hand, keep only safe casual contact on shoulder, upper arm, outer forearm, or upper back, and move unclear or awkward hands to the owner's side, pocket, or a neutral visible position.
 - Image became blurry or noisy: add face-level and garment-level sharpness checks, but do not add vague quality words without restating preservation rules.
 - Hands are distorted: state the exact hand policy: preserve base hands for garment replacement; inherit or preserve hands according to the pose policy for person replacement.
 
