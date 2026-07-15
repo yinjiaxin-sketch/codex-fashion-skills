@@ -42,6 +42,45 @@ Do not use the original garment reference again in pass 2 unless the user explic
 
 If the user provides models wearing different clothes, treat each provided dressed-model image as the final appearance source for that target. Do not assume the garment color, graphic, logo, or accessory from an earlier task still applies.
 
+## Image Role Inheritance Contract
+
+For every person-to-scene or dressed-model-to-scene prompt, write a concrete inheritance split. Do not use vague role text.
+
+The model or dressed-model reference provides:
+
+- `identity`: person identity, face shape, facial geometry, eyes, eyelids, eyebrows, nose, mouth, lips, jawline, cheekbones, ears when visible, skin tone, and facial texture.
+- `hair`: hairstyle, hairline, hair color, hair length, braids, curls, bangs, volume, parting, and visible hair accessories.
+- `body traits`: body build, shoulder width, neck length, limb proportions, visible tattoos, skin details, and overall styling attitude.
+- `final outfit`: all current clothing on the model, including top, bottom, outer layer, shoes, socks, belt, garment fit, silhouette, length, fabric, color, wash texture, seams, labels, patches, front graphics, back graphics, typography, logos, embroidery, prints, and pattern placement.
+- `person-worn accessories`: necklace, pendant, earrings, rings, bracelets, watch, glasses, hat, scarf, chain, waist chain, keychain, hanging accessory, and any accessory attached to the body or clothes.
+- `person-carried props`: bag, phone, drink, book, skateboard, toy, handheld prop, or any prop physically held or worn by the model reference, if the user wants that prop transferred.
+- `face expression source`: default to the model reference's facial identity and expression style, adapted only enough to match the scene head angle, gaze direction, lighting, and occlusion.
+
+The scene reference provides:
+
+- `environment`: background, room, street, landscape, architecture, wall, floor, ceiling, furniture, vehicle, plants, signage, painting, lamp, window, door, pool, bench, sofa, props, and all non-person scene objects.
+- `camera`: final composition, crop, aspect ratio, camera height, lens perspective, depth, focal length feel, distance, and framing.
+- `lighting`: light direction, color temperature, flash, shadow shape, contrast, reflections, grain, sharpness, and overall photo style.
+- `target placement`: each target person's location, scale, depth layer, foreground/background order, occlusion, crop, ground contact, and distance to other people or objects.
+- `pose / posture / action`: each target person's broad pose, body direction, head direction, sitting/standing/crouching/leaning state, arm position, hand gesture, leg placement, weight direction, contact with furniture or ground, and social interaction layout.
+- `scene props and environmental objects`: objects not worn or carried by the model, such as chairs, sofas, flowers, candles, doors, walls, signs, umbrellas, benches, toys in the set, and large set decorations.
+
+Accessory and prop ownership rules:
+
+- If an item is worn on the model's body or attached to model clothing, it follows the model reference.
+- If an item is held by the model reference and should appear with that person, it follows the model reference.
+- If an item belongs to the scene set, furniture, architecture, background, or another non-target person, it follows the scene reference.
+- If the scene target is holding a scene prop that must remain, explicitly say the scene prop is preserved and the replaced hand must grip it naturally.
+- If ownership is ambiguous, write a decision in the target map before the final prompt. Do not let the image model decide.
+
+Hard non-mixing rules:
+
+- Scene original face retention is always `0%` for visible target faces.
+- Scene original clothing retention is always `0%` when using a dressed-model reference.
+- The model reference's studio pose is not inherited unless the user explicitly requests reference-pose transfer.
+- Scene background, scene camera, scene lighting, and scene environmental props are not inherited from the model reference.
+- Person-worn accessories and final outfit are not inherited from the scene target unless the user explicitly asks to preserve them.
+
 ## Scene-Matched Prompt Package Contract
 
 For each task, first perform a task-local scene analysis, then output a prompt package:
@@ -49,10 +88,11 @@ For each task, first perform a task-local scene analysis, then output a prompt p
 1. `Mode`: selected mode and why.
 2. `Scene inventory`: concrete visible background, props, lighting, camera angle, people count, poses, and occlusions.
 3. `Reference inventory`: concrete reference role for each image: raw model, garment-only reference, or dressed-model final appearance reference; include visible face, garment, front/back view, accessories, graphics, fabric, and props.
-4. `Target map`: each target person or garment region with a stable label tied to the current scene.
-5. `Main prompt`: the fastest combined prompt customized to this scene.
-6. `Repair prompts`: short prompts for the highest-risk targets in this scene.
-7. `Checklist`: what to inspect after generation for this exact scene.
+4. `Role ownership inventory`: list which faces, clothes, accessories, props, poses, actions, and scene objects come from the model reference versus the scene reference.
+5. `Target map`: each target person or garment region with a stable label tied to the current scene.
+6. `Main prompt`: the fastest combined prompt customized to this scene.
+7. `Repair prompts`: short prompts for the highest-risk targets in this scene.
+8. `Checklist`: what to inspect after generation for this exact scene.
 
 The main prompt should be copy-ready and scene-specific. The repair prompts should be optional and only used if the main prompt fails in a specific area.
 
@@ -351,6 +391,11 @@ Person-to-scene final prompt template:
 场景图提供最终背景、环境、构图、镜头角度、空间透视、光线方向、阴影、色温、人物所在位置和人与场景物体的关系。
 参考图提供要替换进去的人物身份、脸型、五官、发型、肤色、身材特征、服装、鞋子、包、首饰、眼镜、帽子、手持道具和其他可见配饰。
 如果参考图中的人物已经穿好目标衣服，则该参考图是“已穿好目标衣服的模特图”，它同时提供最终脸部身份、发型、服装、图案、鞋子、配饰、纹身和道具。场景图原人物的脸和衣服都不能保留。
+
+继承分工：
+模特参考图必须继承：完整人物身份、脸型、五官结构、眼睛、眉毛、鼻子、嘴型、下颌线、肤色、皮肤质感、发型、发际线、发色、身材特征、当前完整服装、上衣、下装、外套、鞋子、袜子、腰带、服装版型、颜色、面料、正面图案、背面图案、Logo、文字、印花、刺绣、标签、缝线、水洗质感、项链、吊坠、耳环、戒指、手链、手表、眼镜、帽子、腰链、挂件、纹身、包和明确由模特携带的手持道具。
+场景参考图必须继承：背景、场地、墙面、地面、门窗、家具、建筑、植物、车辆、画作、灯具、道具陈设、构图、画幅、镜头角度、空间透视、人物位置、人物比例、前后层次、遮挡关系、光线方向、色温、阴影、照片质感、人物原始大姿势、pose、动作、手势、身体朝向、头部朝向、坐站蹲靠状态、腿部位置、与地面/家具/道具的接触关系和多人互动布局。
+配饰道具归属：戴在模特身上或挂在模特衣服上的配饰跟模特参考图走；模特手里拿着且需要转移的物品跟模特参考图走；属于场景陈设、家具、建筑、背景或非目标人物的道具跟场景参考图走；如果场景目标手里原本拿着必须保留的场景道具，要明确写“保留该场景道具，并让替换后的手自然握住它”。
 
 姿势策略：
 [保留场景图原人物的位置和大姿势 / 继承参考图的动作、姿势、手势和表情，并适配到场景透视中]。
