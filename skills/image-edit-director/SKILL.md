@@ -1,6 +1,6 @@
 ---
 name: image-edit-director
-description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, accessories, props, face clarity, or preventing models from mixing image roles.
+description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, accessories, props, face clarity, single-image output, or preventing models from mixing image roles.
 ---
 
 # Image Edit Director
@@ -82,6 +82,37 @@ For `person-to-scene-replacement`:
 - If a scene target's face is visible, set `scene face retention = 0%`.
 - If using a dressed-model reference, set `scene clothing retention = 0%`.
 
+## Single-Image Output Protocol
+
+Use this whenever the user provides multiple garment references, front/back/side flat-lay references, before/after references, or multiple target views.
+
+Before writing the final prompt, classify each image as either:
+
+- `garment reference`: provides only garment structure, color, fabric, construction, front details, back details, side details, pockets, seams, zippers, drawstrings, waistbands, hems, and silhouette.
+- `base target image`: provides the only final composition, person count, crop, viewpoint, pose, background, lighting, shoes, hands, upper garment, and camera.
+
+Every garment-replacement prompt must explicitly lock the output composition:
+
+- final output must be one single image
+- keep the base target image's original person count
+- keep the base target image's original crop and viewpoint
+- do not create a front/back comparison
+- do not create a left/right comparison
+- do not create a product display board
+- do not add a second model
+- do not duplicate the model
+- do not turn flat-lay front/back references into worn front/back views
+
+When only a front result is needed, use only the front garment reference and say the back reference is not used for this pass. When only a back result is needed, use only the back garment reference and say the front reference is not used for this pass. When a side or three-quarter result needs both references, state that front/back references provide structure only and are not composition references.
+
+If the model generates two people, a front/back pair, or a comparison layout, repair by restating:
+
+- the result is failed because it changed the output composition
+- keep only the single base target model
+- delete the extra view/model/panel
+- preserve the original crop, background, pose, hands, shoes, and upper garment
+- apply the garment only to the existing target garment region
+
 ## Garment-Replacement Protocol
 
 Use this for replacing a whole garment or outfit on an existing person while preserving the base person.
@@ -148,6 +179,9 @@ For flat-lay garment references, adapt the garment proportion to the base body b
 - base background retention = 100%
 - garment reference identity / body / pose / background retention = 0%
 - target garment detail retention = 100%
+- final output = one single image
+- base target image person count / crop / viewpoint retention = 100%
+- comparison layout / front-back pair / duplicated model = forbidden
 
 ## Person-To-Scene / Dressed-Model-To-Scene Protocol
 
@@ -262,6 +296,7 @@ Diagnose the failure and strengthen only the relevant constraint:
 - garment graphic missing: enumerate the graphic/logo/print as core garment identity
 - garment became plain: require print scale, layout, color blocks, and graphic structure from reference
 - base person changed in garment replacement: garment reference is clothing-only; base identity/body/pose/background retention is `100%`
+- output became two views or two models: final output must be one single image; keep the base target image's original person count, crop, viewpoint, background, pose, hands, shoes, and upper garment; delete any front/back pair, comparison panel, second model, duplicated model, or product display layout
 - dressed-model outfit did not transfer: scene clothing retention is `0%`; dressed-model outfit retention is `100%`
 - accessories disappeared: list each accessory separately; generic "accessories" is insufficient
 - pose stiff: keep location and broad orientation, but allow only small naturalized shoulders, weight, feet, knees, head angle, and hand placement
