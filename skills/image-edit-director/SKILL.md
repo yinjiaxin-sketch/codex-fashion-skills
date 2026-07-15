@@ -1,299 +1,162 @@
 ---
 name: image-edit-director
-description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, pose, background, clothing details, accessories, props, face clarity, or preventing models from mixing image roles.
+description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, pose, background, clothing details, garment length, accessories, props, face clarity, or preventing models from mixing image roles.
 ---
 
 # Image Edit Director
 
-Use this skill to write image-editing prompt contracts. Do not edit images directly unless the user separately asks for generation or editing. Prioritize stable image-role separation over creative language.
+Use this skill to create strict image-editing prompt packages. Do not edit images directly unless the user separately asks for image generation or image editing. The output should be a copy-ready prompt package that reduces creative freedom through clear image roles, allowed edit areas, inheritance rules, forbidden changes, repair prompts, and a checklist.
+
+Default to Chinese output unless the user asks for another language.
 
 ## Production Goal
 
-Build scene-matched prompt packages, not generic rules and not one-off patches. The reusable part is the analysis method; the final wording must be customized to the current scene image, reference image, garment, person count, pose, camera angle, and failure risks.
+Create scene-specific and garment-specific prompt packages, not generic rules. Inspect the current task images before writing the final prompt. Name the actual visible person, garment, pose, background, props, accessories, camera angle, and likely failure risks.
 
 Always optimize for:
 
-- reading the current scene before writing the prompt
-- naming the actual people, poses, garments, props, and background elements visible in the scene
-- separating what the scene image controls from what each reference image controls
-- recognizing whether the person reference is a raw model, a garment reference, or a dressed model already wearing the target outfit
-- preventing stiff mannequin poses, awkward social behavior, and unclear hand ownership after replacement
-- choosing the fastest combined prompt that still matches the scene
-- attaching targeted repair prompts for only the high-risk parts
+- separating image roles
+- locking what may change and what must not change
+- preserving or replacing face identity according to the selected mode
+- preserving garment category, silhouette, length, fit, graphic, logo, print, fabric, seams, hem, and construction details
+- preventing stiff mannequin poses in scene replacement
+- preventing accidental inheritance from the wrong image
+- giving short repair prompts for likely failures
 
-Do not output generic boilerplate like "replace all people" or "keep the background". Name the actual targets and background items in the user's image.
+Do not claim that a prompt can disable the image model's internal reasoning. Say only that the prompt should be followed literally and should not freely redesign the image.
 
-## Two-Stage Fashion Workflow
+## Mode Selection
 
-Use this workflow when the user first puts a changing garment onto a model, then inserts that dressed model into a scene.
+Select exactly one mode for each prompt pass:
 
-Split the work into two separate prompt passes:
+- `garment-replacement`: only replace clothing on the base person. Do not change the face, body, pose, accessories, lower garments, shoes, or background unless explicitly requested.
+- `person-to-scene-replacement`: replace a scene person with the reference person.
 
-1. `garment-replacement`: apply the new garment to the clean model reference. Output a dressed-model reference.
+If the workflow contains both clothing replacement and scene replacement, split it into two passes:
+
+1. `garment-replacement`: put the new garment on the clean model reference and output a dressed-model reference.
 2. `person-to-scene-replacement`: insert the dressed-model reference into the scene.
 
-In pass 2, the dressed-model reference is the complete final person source. It provides identity, full face, facial features, hair, skin tone, body traits, final outfit, garment graphics, shoes, jewelry, accessories, tattoos, props, and styling. The scene image provides only background, camera, lighting, composition, target location, target pose, body direction, contact points, occlusion, and shadows.
+In pass 2, the dressed-model reference is the complete final person source. Do not reuse the flat garment reference unless the user asks for garment-detail repair.
 
-Do not use the original garment reference again in pass 2 unless the user explicitly asks for garment-detail repair. Do not let the scene person's original clothing survive in pass 2. For every target in pass 2, set:
+## Required Package Structure
 
-- `scene face retention = 0%`
-- `scene clothing retention = 0%`
-- `dressed-model face / hair / outfit / accessories retention = 100%`
-
-If the user provides models wearing different clothes, treat each provided dressed-model image as the final appearance source for that target. Do not assume the garment color, graphic, logo, or accessory from an earlier task still applies.
-
-## Image Role Inheritance Contract
-
-For every person-to-scene or dressed-model-to-scene prompt, write a concrete inheritance split. Do not use vague role text.
-
-The model or dressed-model reference provides:
-
-- `identity`: person identity, face shape, facial geometry, eyes, eyelids, eyebrows, nose, mouth, lips, jawline, cheekbones, ears when visible, skin tone, and facial texture.
-- `hair`: hairstyle, hairline, hair color, hair length, braids, curls, bangs, volume, parting, and visible hair accessories.
-- `body traits`: body build, shoulder width, neck length, limb proportions, visible tattoos, skin details, and overall styling attitude.
-- `final outfit`: all current clothing on the model, including top, bottom, outer layer, shoes, socks, belt, garment fit, silhouette, length, fabric, color, wash texture, seams, labels, patches, front graphics, back graphics, typography, logos, embroidery, prints, and pattern placement.
-- `person-worn accessories`: necklace, pendant, earrings, rings, bracelets, watch, glasses, hat, scarf, chain, waist chain, keychain, hanging accessory, and any accessory attached to the body or clothes.
-- `person-carried props`: bag, phone, drink, book, skateboard, toy, handheld prop, or any prop physically held or worn by the model reference, if the user wants that prop transferred.
-- `face expression source`: default to the model reference's facial identity and expression style, adapted only enough to match the scene head angle, gaze direction, lighting, and occlusion.
-
-The scene reference provides:
-
-- `environment`: background, room, street, landscape, architecture, wall, floor, ceiling, furniture, vehicle, plants, signage, painting, lamp, window, door, pool, bench, sofa, props, and all non-person scene objects.
-- `camera`: final composition, crop, aspect ratio, camera height, lens perspective, depth, focal length feel, distance, and framing.
-- `lighting`: light direction, color temperature, flash, shadow shape, contrast, reflections, grain, sharpness, and overall photo style.
-- `target placement`: each target person's location, scale, depth layer, foreground/background order, occlusion, crop, ground contact, and distance to other people or objects.
-- `pose / posture / action`: each target person's broad pose, body direction, head direction, sitting/standing/crouching/leaning state, arm position, hand gesture, leg placement, weight direction, contact with furniture or ground, and social interaction layout.
-- `scene props and environmental objects`: objects not worn or carried by the model, such as chairs, sofas, flowers, candles, doors, walls, signs, umbrellas, benches, toys in the set, and large set decorations.
-
-Accessory and prop ownership rules:
-
-- If an item is worn on the model's body or attached to model clothing, it follows the model reference.
-- If an item is held by the model reference and should appear with that person, it follows the model reference.
-- If an item belongs to the scene set, furniture, architecture, background, or another non-target person, it follows the scene reference.
-- If the scene target is holding a scene prop that must remain, explicitly say the scene prop is preserved and the replaced hand must grip it naturally.
-- If ownership is ambiguous, write a decision in the target map before the final prompt. Do not let the image model decide.
-
-Hard non-mixing rules:
-
-- Scene original face retention is always `0%` for visible target faces.
-- Scene original clothing retention is always `0%` when using a dressed-model reference.
-- The model reference's studio pose is not inherited unless the user explicitly requests reference-pose transfer.
-- Scene background, scene camera, scene lighting, and scene environmental props are not inherited from the model reference.
-- Person-worn accessories and final outfit are not inherited from the scene target unless the user explicitly asks to preserve them.
-
-## Scene-Matched Prompt Package Contract
-
-For each task, first perform a task-local scene analysis, then output a prompt package:
-
-1. `Mode`: selected mode and why.
-2. `Scene inventory`: concrete visible background, props, lighting, camera angle, people count, poses, and occlusions.
-3. `Reference inventory`: concrete reference role for each image: raw model, garment-only reference, or dressed-model final appearance reference; include visible face, garment, front/back view, accessories, graphics, fabric, and props.
-4. `Role ownership inventory`: list which faces, clothes, accessories, props, poses, actions, and scene objects come from the model reference versus the scene reference.
-5. `Target map`: each target person or garment region with a stable label tied to the current scene.
-6. `Main prompt`: the fastest combined prompt customized to this scene.
-7. `Repair prompts`: short prompts for the highest-risk targets in this scene.
-8. `Checklist`: what to inspect after generation for this exact scene.
-
-The main prompt should be copy-ready and scene-specific. The repair prompts should be optional and only used if the main prompt fails in a specific area.
-
-When the task is simple, keep the package short. When the task has multiple people, multiple garments, visible faces, front/back references, props, or complex poses, include the full scene inventory and target map.
-
-## Batch Scene Workflow
-
-Use this workflow when the user provides many scene images after the single-scene workflow is mature.
-
-Do not reuse one generic prompt across all scenes. For every scene image:
-
-- inspect the actual scene structure
-- count the visible people
-- label every target person by position, pose, orientation, and occlusion
-- identify visible faces, back-facing bodies, seated bodies, standing bodies, hands, props, and scene contact points
-- identify the exact background elements that must be preserved
-- choose the correct reference source for each target
-- write a scene-specific main prompt
-- write only the repair prompts that match the risks in that scene
-
-When asked to organize outputs into a folder, create one folder per batch and use this structure:
-
-```text
-batch-name/
-  00-index.md
-  scene-001/
-    source-note.md
-    main-prompt.txt
-    target-map.md
-    repair-prompts.md
-    checklist.md
-  scene-002/
-    source-note.md
-    main-prompt.txt
-    target-map.md
-    repair-prompts.md
-    checklist.md
-```
-
-`00-index.md` must summarize every scene with its filename, mode, people count, highest-risk target, and recommended first repair if the batch prompt fails.
-
-`main-prompt.txt` must be ready to paste into the user's image tool.
-
-`target-map.md` must describe the scene-specific target labels, not generic labels.
-
-`repair-prompts.md` must include targeted repair prompts only for likely failure points such as visible faces, seated figures, hands, front/back garment graphics, complex accessories, or occluded bodies.
-
-`checklist.md` must be specific to the scene and should not be a generic quality checklist.
-
-If the user provides a naming convention, follow it. Otherwise, use `scene-001`, `scene-002`, etc. Preserve the original filename in `source-note.md`.
-
-## Core Rules
-
-Classify the request before writing any prompt. Select exactly one mode:
-
-- `garment-replacement`: replace only the clothing on the base person.
-- `person-to-scene-replacement`: replace the scene person with the reference person.
-
-If the user asks for both, split the work into separate passes. Do not combine garment replacement and person replacement in one prompt unless the user explicitly accepts higher risk. If the user says the model image already wears the target clothes, skip garment transfer in the scene prompt and treat that image as a dressed-model reference.
-
-Treat image roles as hard constraints:
-
-- The base image controls everything except the allowed edit area.
-- The reference image contributes only the object defined by the selected mode.
-- Do not import unrelated identity, body, pose, background, lighting, or styling from the wrong image.
-- Do not ask the image model to reason, reinterpret, redesign, beautify, or fill in missing details. In the final prompt, explicitly instruct it to execute the listed constraints literally.
-
-Default to Chinese output unless the user asks for another language. Keep the final prompt direct, repetitive where needed, and copy-ready.
-
-## Required Output Structure
-
-Always output these sections:
+Every output package must include:
 
 1. `模式判断`
 2. `图片角色`
 3. `只允许修改`
 4. `必须保留`
 5. `必须继承`
-6. `禁止项`
-7. `质量验收`
-8. `最终提示词`
+6. `贴合与融合要求`
+7. `禁止项`
+8. `质量验收`
+9. `最终提示词`
+10. `修复提示词`
 
-Include assumptions only when image roles are not labeled clearly. If role ambiguity would make the result unsafe, ask one short question before producing the final prompt.
+For batch folders, write one prompt package per scene. Do not reuse one generic prompt for all scenes.
 
 ## Universal Execution Block
 
-Include this idea in every final prompt:
+Include this meaning in every final prompt:
 
 ```text
 严格按以下编辑约束执行。不要自由发挥，不要重新设计，不要根据审美改图，不要添加未提到的新元素，不要自动补全缺失内容，不要把参考图中未被指定继承的内容带入结果。当信息冲突时，以“只允许修改”“必须保留”“必须继承”“禁止项”的约束为最高优先级。
 ```
 
-Do not claim this can disable the model's internal reasoning. It only reduces creative freedom through hard constraints.
+## Image Role Contract
 
-## Mode: garment-replacement
+Use hard role separation.
 
-Use when the user wants to replace clothing on an existing person, including full outfit replacement, upper garment replacement, lower garment replacement, dress replacement, coat replacement, uniform replacement, fabric/pattern transfer, or product-clothing try-on.
+For `garment-replacement`:
 
-Image roles:
+- Base image provides final person identity, face, hair, skin, body proportion, pose, gesture, expression, accessories, lower garments, shoes, background, camera, lighting, shadow, and composition.
+- Garment reference provides only the specified garment: category, silhouette, fit, length, collar, shoulders, sleeves, hem, fabric, color, wash, seams, labels, logo, graphic, print, typography, pattern, embroidery, pockets, closures, tags, and construction details.
+- Garment reference must not provide face, hair, body, pose, gesture, expression, background, lighting, camera, or model identity.
 
-- Base image: final person, face, hair, skin, body proportion, pose, gesture, expression, background, camera angle, lighting, shadow, and composition.
-- Garment reference image: clothing source only. It must not provide identity, face, hair, body, pose, gesture, expression, background, or camera angle.
+For `person-to-scene-replacement`:
 
-Allowed edit area:
+- Scene image provides environment, background, camera, lighting, composition, target placement, scale, depth, occlusion, broad pose, posture, action, contact points, and scene props.
+- Person or dressed-model reference provides identity, full face, facial geometry, hair, skin tone, body traits, final outfit, shoes, accessories, tattoos, carried props, and styling.
+- If a scene target's face is visible, set `scene face retention = 0%`.
+- If using a dressed-model reference, set `scene clothing retention = 0%`.
 
-- Edit only the specified garment area on the base person.
-- Include necessary garment edges, sleeves, collar, hem, waistband, and natural cloth folds.
-- Preserve skin, face, hair, hands, legs, body shape, accessories, background, and scene objects unless the user explicitly says they are part of the garment replacement.
+## Garment-Replacement Protocol
 
-Must inherit from garment reference:
+Use this for replacing a whole garment or outfit on an existing person while preserving the base person.
 
-- Garment category and full silhouette.
-- Fit, cut, length, layering, collar/neckline, shoulders, sleeves, cuffs, waist, hem, closures, pockets, seams, straps, buttons, zippers, drawstrings, labels, logo, print, pattern, embroidery, texture, fabric, color, material finish, and visible construction details.
-- If a logo, print, stripe, plaid, graphic, or repeated pattern exists, state that it is a core garment detail and must remain visible, complete, aligned to fabric folds, and not simplified.
+### Allowed Edit Area
 
-Fit and realism requirements:
+Only edit the target garment region and necessary garment edges:
 
-- Adapt the reference garment to the base person's body, pose, and camera perspective.
-- Make the garment wrap naturally around the torso, arms, waist, hips, or legs as applicable.
-- Match the base image lighting, shadow direction, color temperature, sharpness, lens perspective, and occlusion by hands, hair, bags, jewelry, or other foreground elements.
+- collar / neckline
+- shoulders
+- sleeves
+- torso cloth
+- hem
+- necessary cloth folds
+- garment shadow and contact around the body
 
-Garment production protocol:
+Do not edit face, hair, skin, hands, body shape, pose, expression, accessories, pants, skirt, shoes, background, camera, or lighting unless explicitly included in the garment target.
 
-- Start with a garment target map when more than one garment or more than one person is involved.
-- Label each garment region, such as `front upper T-shirt`, `back upper T-shirt`, `pants`, `shoes`, or `outer layer`.
-- State whether each reference is a front view, back view, side view, flat-lay, product photo, or model-worn photo.
-- Preserve the base person's pose, anatomy, face, hands, and scene.
-- Do not allow a garment reference model to contribute identity, pose, face, hairstyle, body, or background.
-- Treat logos, typography, graphic prints, embroidery, patches, texture wash, seams, tags, collar shape, sleeve shape, and hem shape as core garment identity.
-- If exact text in a graphic is unreliable for the model, require layout, contrast, placement, and overall graphic block integrity rather than hallucinated readable text.
+### Garment Detail Lock
 
-Garment replacement final prompt template:
+Treat these as core garment identity:
 
-```text
-模式：garment-replacement
+- garment category
+- cut and fit
+- exact visible length
+- shoulder width
+- sleeve length
+- collar shape
+- hem shape
+- fabric weight and texture
+- wash / fading / distressing
+- seams / stitching / ribbing / tags / labels
+- print / logo / typography / graphic / embroidery / pattern
+- print scale, position, layout, contrast, and color blocks
 
-严格按以下编辑约束执行。不要自由发挥，不要重新设计，不要根据审美改图，不要添加未提到的新元素，不要自动补全缺失内容。
+If exact text cannot be reliably reproduced, require the layout, scale, placement, contrast, color blocks, and overall graphic structure to stay faithful. Do not let the graphic become random small text, a blurry patch, or a plain shirt.
 
-任务：
-只替换底图人物身上的[指定服装/整套服装]，将其换成参考图中的服装。参考图只作为服装来源，不作为人物来源。
+### Garment Length And Fit Lock
 
-图片角色：
-底图提供最终人物、脸部五官、发型、肤色、身材比例、姿势、手势、表情、背景、镜头角度、构图、光线和阴影。
-参考图只提供服装本身，包括版型、颜色、面料、图案、Logo、结构和细节。
+Always classify and state garment length before the final prompt:
 
-只允许修改：
-只允许修改底图人物身上的服装区域。不要修改脸、五官、头发、皮肤、手、腿、身体比例、姿势、手势、表情、配饰、背景、光线或构图。
+- `短版 / cropped / short-length`: hem sits around the high waist, waistband, or upper hip; it must not extend to the crotch or become a long oversized tee.
+- `常规长度`: hem sits around mid-hip.
+- `长版 / oversized long`: hem falls lower and covers more of the hip.
+- `外套 / coat / dress`: use the visible garment-specific length.
 
-必须保留：
-完整保留底图人物身份、脸部五官、发型、肤色、身材比例、姿势、手势、表情、背景、镜头角度、构图、光线方向、阴影关系和画面清晰度。
+When the user says the garment is a short version, write hard constraints:
 
-必须继承：
-严格继承参考服装的整体类别、版型、剪裁、长短、松紧、领口、肩线、袖型、袖口、腰线、下摆、叠穿关系、纽扣、拉链、口袋、缝线、抽绳、标签、Logo、印花、图案、纹理、颜色、面料质感和所有可见结构细节。Logo、印花、条纹、格纹、图案和装饰属于服装核心细节，必须完整保留，不能消失、简化、错位或变形。
+- The garment is a short-version T-shirt.
+- Preserve the short body length and short hem position from the reference.
+- The hem should sit around the upper waist / waistband / upper-hip area according to the reference and base body perspective.
+- Do not stretch the shirt downward.
+- Do not turn it into a regular long T-shirt or oversized long tee.
+- Do not cover the pants waist, crotch, side hanging cloth, belt area, or lower-garment details that should remain visible.
+- If the shorter hem reveals an area previously covered by the old shirt, restore that area from the base image or keep it naturally as the original lower garment/waist area. Do not invent new skin exposure unless the reference garment clearly requires it.
 
-贴合要求：
-新服装必须自然贴合底图人物身体和姿势，符合人体结构、布料褶皱、透视、遮挡关系和原图光影。服装边缘要自然，不能像贴纸，不能漂浮，不能改变人物身体。
+For flat-lay garment references, adapt the garment proportion to the base body but keep the same short/regular/long length category. Do not let flat-lay width or empty-shirt shape override the base body anatomy.
 
-禁止项：
-不要换脸。不要改变底图人物五官。不要继承参考图人物的脸、头发、身体、姿势、手势、表情或背景。不要改变底图背景。不要改变人物比例。不要模糊脸部。不要增加面部噪点。不要让服装图案、Logo、口袋、纽扣、拉链、缝线或结构细节消失。
+### Garment Prompt Must Explicitly Say
 
-质量验收：
-人物脸部必须和底图一致且清晰自然；服装细节清楚；图案完整；边缘干净；光影统一；画面保持高清、低噪点、真实自然。
-```
+- only the target garment changes
+- base face retention = 100%
+- base body / pose retention = 100%
+- base background retention = 100%
+- garment reference identity / body / pose / background retention = 0%
+- target garment detail retention = 100%
 
-## Mode: person-to-scene-replacement
+## Person-To-Scene / Dressed-Model-To-Scene Protocol
 
-Use when the user wants to place a reference person into a scene, replace a person in a scene, swap the model, replace identity, preserve a scene while changing the person, or inherit a reference person's face, clothing, accessories, props, action, gesture, or expression.
-
-Image roles:
-
-- Scene image: final background, environment, composition, camera angle, lighting, color temperature, shadow, spatial perspective, target person location, and object relationships.
-- Person reference image: person source. It provides identity, face, facial features, hairstyle, skin tone, body traits, clothing, shoes, accessories, props, and visible styling.
-
-Pose policy:
-
-- State pose policy explicitly in every prompt.
-- If the user says to keep the scene pose, preserve the original scene person's pose, gesture, body orientation, and location while replacing identity and appearance.
-- If the user says to inherit the reference pose, action, gesture, or expression, transfer those from the reference person and adapt them to the scene perspective.
-- If the user does not specify pose, default to preserving the scene person's location and broad body pose, while using the reference person's identity, face, clothing, accessories, and props.
-- If the result tends to become stiff or "standing like a mannequin", preserve the scene target's location, scale, orientation, and contact points, but allow small pose naturalization: relaxed shoulders, slight weight shift, small knee bend, natural head angle, natural hand placement, and plausible spacing between bodies. Do not import the studio reference pose.
-
-Allowed edit area:
-
-- Edit the target person region and necessary contact shadows/reflections only.
-- Preserve scene background, camera, perspective, lighting, and nearby objects.
-
-Must inherit from person reference:
-
-- Face shape, facial features, identity, hairstyle, hair color, skin tone, body traits, clothing, shoes, bags, jewelry, glasses, hat, scarf, watch, handheld props, other visible accessories, and expression when requested.
-- Enumerate visible accessories and props when the user provides them. Do not use generic "accessories" alone if details are known.
-- If the person reference is already wearing the target clothes, treat the whole visible outfit as final: garment category, silhouette, color, fabric, graphic, logo, print, front/back design, labels, seams, wash texture, shoes, jewelry, tattoos, and props must transfer together with the face and identity.
-
-## Dressed-Model-To-Scene Protocol
-
-Use this protocol whenever the reference person is already wearing the target outfit.
+Use this when the user wants a model or already dressed model inserted into a scene.
 
 For each target person, write a target contract:
 
 - `scene target`: exact scene person label by position, pose, orientation, and occlusion
-- `dressed-model source`: exact reference image or model label
-- `pose source`: scene target only
+- `dressed-model source`: exact reference image / model label
+- `pose source`: scene target only unless the user asks for reference pose
 - `identity source`: dressed-model source only
 - `face source`: dressed-model source only
 - `hair source`: dressed-model source only
@@ -303,140 +166,119 @@ For each target person, write a target contract:
 - `scene face retention = 0%`
 - `scene clothing retention = 0%`
 
-Full face replacement means replacing the visible face identity, facial geometry, eyes, eyelids, eyebrows, nose, mouth, jawline, cheekbones, skin tone, hairline, ears when visible, and hairstyle boundary. The scene face may provide only head location, head scale, head direction, occlusion, and lighting adaptation. Do not blend scene facial features with the reference face.
+Full face replacement means replacing visible face identity, face shape, eyes, eyelids, eyebrows, nose, mouth, lips, jawline, cheekbones, skin tone, hairline, visible ears, and hairstyle boundary. The scene face may provide only head position, head scale, head direction, occlusion, and lighting adaptation.
 
-When a visible face fails, repair it with a face-lock pass before changing clothes again. Mask the full visible head region including face, hairline, ears, and neck edge if needed. Keep body, outfit, hands, background, pose, and lighting unchanged.
-
-When clothing fails in pass 2, repair the target person's whole visible clothing region from the dressed-model source. Do not use the scene person's original shirt, pants, shoes, logo, print, or accessories. If the dressed-model source has a large back graphic, front graphic, skull graphic, typography, logo, wash texture, stripe, patch, chain, pendant, ring, tattoo, or hanging accessory, treat it as intentional and preserve it unless the user says it is wrong.
+If the reference person already wears the target clothes, treat the whole visible outfit as final: top, pants, shoes, graphics, back print, front print, wash texture, seams, labels, jewelry, chains, tattoos, keychain, hanging accessories, and carried props.
 
 ## Natural Pose And Behavior Protocol
 
-Use this protocol when replaced people look stiff, line up like mannequins, stand too straight, face walls unnaturally, or create awkward social contact.
+Use this when replaced people look stiff, line up like mannequins, stand too straight, or interact awkwardly.
 
-For every target person in a group scene, include a behavior contract:
+For every target in a group scene, include:
 
-- `location lock`: keep the target's scene position, scale, ground contact, and scene layer.
-- `orientation lock`: keep the target's broad facing direction: front, side, back, side-back, seated, crouching, leaning, or walking.
-- `pose flexibility`: allow only small natural adjustments that improve realism without changing the scene composition.
-- `weight and stance`: require asymmetric weight, relaxed shoulders, non-parallel feet, or slight knee bend when the target is standing.
-- `hand ownership`: every visible hand must belong to a named target. Do not create unowned hands.
-- `contact owner`: if a hand touches another person, name whose hand it is and where it touches.
-- `safe contact zones`: shoulder, upper arm, outer forearm, or upper back only, unless the original scene clearly shows another safe contact.
-- `forbidden contact zones`: face, neck, chest, waist, crotch, inner thigh, or any ambiguous intimate area.
-- `social plausibility`: keep a casual editorial group behavior; avoid grabbing, restraining, pushing, awkward hovering hands, or hands passing through bodies.
+- location lock: keep the target's scene position, scale, depth layer, and ground/furniture contact
+- orientation lock: keep the broad facing direction: front, side, back, side-back, seated, crouching, leaning, or walking
+- pose flexibility: allow only small naturalization that keeps the same composition
+- weight and stance: standing targets need asymmetric weight, relaxed shoulders, non-parallel feet, or a slight knee bend
+- hand ownership: every visible hand must belong to a named target
+- contact owner: if a hand touches another person, name the owner and contact area
+- safe contact zones: shoulder, upper arm, outer forearm, or upper back
+- forbidden contact zones: face, neck, chest, waist, crotch, inner thigh, or ambiguous intimate areas
 
-Do not solve stiffness by adding dramatic gestures. Use low-risk micro-actions: one hand in pocket, hand resting naturally at side, relaxed elbow bend, slight lean toward the group, head turned toward another person, or hand resting lightly on a shoulder or upper arm when appropriate.
-
-When the scene has an existing interaction, preserve its intent but clean up the anatomy and contact. Example: if a scene person has an arm across another person's shoulder, keep it as a casual shoulder rest only if the hand origin is clear and the hand lands on shoulder or upper arm. Otherwise move the hand to the owner's side, pocket, or a clearly visible safe contact zone.
-
-When the scene does not show a clear original interaction, do not invent intimate touch. Keep spacing natural and editorial.
+Do not solve stiffness by adding dramatic gestures. Use low-risk micro-actions only: one hand in pocket, hand resting at side, relaxed elbow bend, slight lean toward the group, head turned naturally, or hand lightly resting on shoulder/upper arm if the scene already supports that relationship.
 
 ## Multi-Person Scene Protocol
 
-Use this protocol whenever a scene contains more than one target person. Do not write a single generic "replace all people" prompt for a multi-person scene.
+Do not write "replace all people" for a multi-person scene.
 
-Require a target map before the final prompt:
+Create a target map:
 
-- Assign each scene person a stable label by position and pose, such as `left back-facing man`, `center standing woman`, `front seated woman`, or `right back-facing man`.
-- Assign exactly one reference source to each scene person.
-- State whether the reference source provides a front view, back view, side view, or only outfit details.
-- State which scene pose must be preserved for each target person.
-- State which face source applies to each visible face. If the target face is visible, "scene face retention" must be explicitly set to `0%`.
+- stable label for each person, such as `left back-facing man`, `center standing woman`, `front seated woman`, `right side-facing man`
+- exact reference source for each target
+- which targets have visible faces
+- which targets need front-view, side-view, or back-view reference
+- which scene pose / action / contact must remain
+- which accessories and props belong to the reference versus the scene
 
-For best stability, recommend one edit pass per target person when the model supports masks or regional editing:
+The main combined prompt must include:
 
-1. Replace the most important visible face first.
-2. Replace the next visible face.
-3. Replace back-facing people last, using back-view garment references.
+- keep the same number of people as the scene image
+- do not add, duplicate, remove, or merge people
+- each target keeps scene position, scale, broad pose, body direction, and contact relationship
+- each visible target face has `scene face retention = 0%`
+- each target's scene clothing has `scene clothing retention = 0%`
+- reference studio poses are forbidden unless explicitly requested
 
-If the user insists on one combined prompt, include the target map inside the prompt and warn that it is less stable than target-by-target editing.
+Use target-by-target repair prompts when the combined prompt fails.
 
-Never let a front-view studio reference overwrite a scene pose. The scene controls pose and body action; the reference controls identity, face, outfit, accessories, and garment graphics only.
+## Repair Rules
 
-## Efficient Multi-Person Output
+Diagnose the failure and strengthen only the relevant constraint:
 
-For production efficiency, do not only recommend one-person-at-a-time editing. Output a prompt package:
+- face did not transfer: full visible head/face/hair identity must come from the assigned reference; scene face retention is `0%`
+- face blended: partial blending is failure; preserve only scene head angle, scale, lighting, and occlusion
+- garment length wrong: restate the exact length category, hem location, and forbidden length extension
+- garment graphic missing: enumerate the graphic/logo/print as core garment identity
+- garment became plain: require print scale, layout, color blocks, and graphic structure from reference
+- base person changed in garment replacement: garment reference is clothing-only; base identity/body/pose/background retention is `100%`
+- dressed-model outfit did not transfer: scene clothing retention is `0%`; dressed-model outfit retention is `100%`
+- accessories disappeared: list each accessory separately; generic "accessories" is insufficient
+- pose stiff: keep location and broad orientation, but allow only small naturalized shoulders, weight, feet, knees, head angle, and hand placement
+- behavior inappropriate: name hand owner and move unclear hands to side, pocket, or safe contact zones
+- image blurry/noisy: require face-level and garment-level sharpness while preserving the same edit constraints
 
-1. `Main batch prompt`: one combined prompt with a strict target map, fixed person count, fixed scene poses, and per-target reference sources.
-2. `Target repair prompts`: short optional repair prompts for each visible face or high-risk target.
-3. `Failure diagnosis`: tell the user which target to repair first if the batch result fails.
+Do not fix failures by making the prompt more decorative. Fix them by narrowing roles, allowed edit areas, inheritance rules, and forbidden changes.
 
-The main batch prompt must include these hard constraints:
+## Copy-Ready Garment Prompt Skeleton
 
-- Keep the exact same number of people as the scene image.
-- Do not add new people, duplicate people, remove people, or merge people.
-- Each target person keeps the scene position, pose, gesture, body direction, and contact relationship.
-- Each standing target must avoid mannequin stiffness: require relaxed shoulders, slight weight shift, natural hand placement, and non-identical stance unless the scene intentionally shows a rigid lineup.
-- Every hand must have a named owner and a plausible contact target. Remove or neutralize unclear, floating, or socially awkward hands.
-- Each visible target face has `scene face retention = 0%`.
-- Each target person's scene clothing has `scene clothing retention = 0%` when using dressed-model references.
-- Each target person's full visible outfit, shoes, graphics, accessories, tattoos, and props come from the assigned dressed-model reference.
-- Back-facing targets use back-view references and should not grow visible faces.
-- Front-facing targets use front-view references for identity and face.
-- Reference studio poses are forbidden unless explicitly requested.
+Use this skeleton after filling in task-specific image details:
 
-Use target-by-target editing as a fallback, not as the default final answer, unless the user is already in a repair pass or requests maximum reliability over speed.
+```text
+模式：garment-replacement
 
-Person-to-scene final prompt template:
+严格按以下编辑约束执行。不要自由发挥，不要重新设计，不要根据审美改图，不要添加未提到的新元素，不要自动补全缺失内容。只执行服装替换。
+
+任务：只替换底图人物身上的[目标服装区域]，替换成服装参考图中的[目标服装]。参考图只作为服装来源，不作为人物来源。
+
+图片角色：底图提供最终人物身份、脸部五官、发型、肤色、身材比例、姿势、手势、表情、非目标服装、鞋子、配饰、背景、镜头角度、构图、光线和阴影。服装参考图只提供目标服装本身，包括类别、版型、衣长、领口、肩线、袖型、下摆、面料、颜色、图案、Logo、文字、印花、结构和细节。
+
+只允许修改：[目标服装区域]。不允许修改脸、五官、头发、皮肤、手、腿、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、光线或构图。
+
+必须保留：完整保留底图人物身份、脸部五官、发型、肤色、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、镜头角度、构图、光线方向、阴影关系和画面清晰度。
+
+必须继承：严格继承参考服装的类别、版型、剪裁、衣长、松紧、领口、肩线、袖型、袖口、下摆、面料质感、颜色、洗水质感、缝线、标签、Logo、文字、印花、图案、图案比例、图案位置、图案颜色层次和所有可见结构细节。
+
+衣长锁定：[写明短版/常规/长版，以及衣摆落点]。不要把衣服拉长，不要改变成其他衣长。
+
+贴合要求：新服装必须自然贴合底图人物身体和姿势，符合人体结构、布料褶皱、透视、遮挡关系和原图光影。图案必须跟随布料曲面和褶皱，不漂浮、不像贴纸、不越界。
+
+禁止项：不要换脸，不要改五官，不要改发型，不要改肤色，不要改身体比例，不要改姿势或表情，不要改背景，不要让服装图案消失、简化、错位、变形，不要把参考图的人物、背景、平铺白底或商品图边界带入结果。
+
+质量验收：最终图必须仍然是底图人物本人；只有目标服装被替换；服装版型、衣长、图案、Logo、面料和边缘自然清晰；背景和光影保持底图一致；画面高清、低噪点、真实自然。
+```
+
+## Copy-Ready Person-To-Scene Prompt Skeleton
+
+Use this skeleton after filling in target map details:
 
 ```text
 模式：person-to-scene-replacement
 
 严格按以下编辑约束执行。不要自由发挥，不要重新设计，不要根据审美改图，不要添加未提到的新元素，不要自动补全缺失内容。
 
-任务：
-将场景图中的目标人物替换为参考图中的人物。场景图是最终画面的基础，参考图是人物来源。
+任务：将场景图中的[目标人物]替换为参考图中的[参考人物/已穿好目标服装的模特]。
 
-图片角色：
-场景图提供最终背景、环境、构图、镜头角度、空间透视、光线方向、阴影、色温、人物所在位置和人与场景物体的关系。
-参考图提供要替换进去的人物身份、脸型、五官、发型、肤色、身材特征、服装、鞋子、包、首饰、眼镜、帽子、手持道具和其他可见配饰。
-如果参考图中的人物已经穿好目标衣服，则该参考图是“已穿好目标衣服的模特图”，它同时提供最终脸部身份、发型、服装、图案、鞋子、配饰、纹身和道具。场景图原人物的脸和衣服都不能保留。
+图片角色：场景图提供最终背景、环境、构图、镜头角度、空间透视、光线方向、阴影、色温、人物位置、人物比例、大姿势、动作、手势、接触关系和场景道具。参考图提供要替换进去的人物身份、完整脸部五官、发型、肤色、身体特征、当前完整服装、鞋子、配饰、纹身、挂件、手持道具和造型细节。
 
-继承分工：
-模特参考图必须继承：完整人物身份、脸型、五官结构、眼睛、眉毛、鼻子、嘴型、下颌线、肤色、皮肤质感、发型、发际线、发色、身材特征、当前完整服装、上衣、下装、外套、鞋子、袜子、腰带、服装版型、颜色、面料、正面图案、背面图案、Logo、文字、印花、刺绣、标签、缝线、水洗质感、项链、吊坠、耳环、戒指、手链、手表、眼镜、帽子、腰链、挂件、纹身、包和明确由模特携带的手持道具。
-场景参考图必须继承：背景、场地、墙面、地面、门窗、家具、建筑、植物、车辆、画作、灯具、道具陈设、构图、画幅、镜头角度、空间透视、人物位置、人物比例、前后层次、遮挡关系、光线方向、色温、阴影、照片质感、人物原始大姿势、pose、动作、手势、身体朝向、头部朝向、坐站蹲靠状态、腿部位置、与地面/家具/道具的接触关系和多人互动布局。
-配饰道具归属：戴在模特身上或挂在模特衣服上的配饰跟模特参考图走；模特手里拿着且需要转移的物品跟模特参考图走；属于场景陈设、家具、建筑、背景或非目标人物的道具跟场景参考图走；如果场景目标手里原本拿着必须保留的场景道具，要明确写“保留该场景道具，并让替换后的手自然握住它”。
+目标映射：[逐个列出场景目标、参考来源、姿势来源、脸部来源、服装来源、配饰来源。可见脸必须写 scene face retention = 0%。使用已穿好服装的模特时必须写 scene clothing retention = 0%。]
 
-姿势策略：
-[保留场景图原人物的位置和大姿势 / 继承参考图的动作、姿势、手势和表情，并适配到场景透视中]。
-如果替换后人物容易站桩，保留场景人物的位置、画面比例、大朝向、前后层次和接触点，但允许小幅自然化姿态：肩膀放松、重心偏向一侧、脚位不完全平行、膝盖轻微弯曲、头部有自然角度、手部自然落在身体侧边/口袋/安全接触区域。不要把参考图棚拍站姿带入场景。
+必须保留：完整保留场景图背景、环境、构图、镜头、空间透视、光线、阴影、色温、清晰度、人物位置、人物比例、前后层级、遮挡关系、接触点和场景道具。
 
-只允许修改：
-只允许修改场景图中的目标人物区域，以及人物与地面或物体接触产生的必要阴影和反射。不要修改背景、建筑、家具、道路、天空、灯光、镜头角度或构图。
+必须继承：完整继承参考人物的脸型、五官结构、眼睛、眉毛、鼻子、嘴型、下颌线、肤色、皮肤质感、发型、发际线、头发长度、当前完整服装、鞋子、图案、Logo、正面图案、背面图案、面料、洗水质感、缝线、标签、项链、耳环、戒指、手链、手表、纹身、挂件和明确携带的道具。
 
-必须保留：
-完整保留场景图的背景、环境、构图、镜头角度、空间透视、光线方向、阴影关系、色温、清晰度和人物所在位置。
+姿势策略：保留场景目标的位置、比例、大朝向、坐/站/靠/蹲状态和接触关系；只允许小幅自然化肩膀、重心、脚位、膝盖、头部角度、手部落点，避免站桩。不要把参考图棚拍站姿带入场景。
 
-必须继承：
-严格继承参考人物的身份、脸型、五官比例、发型、发色、肤色、身材特征、服装、鞋子、包、首饰、眼镜、帽子、手表、手持道具和所有可见配饰。参考人物的配饰和道具必须完整出现，不能丢失、简化或替换成场景图原人物的物品。
-可见脸目标：scene face retention = 0%。完整替换可见脸部身份、五官结构、眼睛、眉毛、鼻子、嘴型、下颌线、脸型、肤色、发际线、耳朵和发型边界。场景原脸只提供头部位置、头部大小、朝向、遮挡和光线适配，不能贡献任何五官。
-服装目标：scene clothing retention = 0%。完整继承参考人物当前穿着的衣服、裤子、鞋子、图案、Logo、印花、背面图案、正面图案、面料、水洗质感、缝线、标签、链条、挂件、首饰、纹身和其他可见细节。不要保留场景原人物的衣服颜色、版型、图案或配饰。
+禁止项：不要保留场景原人物的脸、五官、身份、服装、鞋子或配饰。不要混合场景原脸和参考脸。不要新增人物、删除人物、复制人物或合并人物。不要改变背景。不要产生来源不明的手、悬空手、穿模手或不合适触碰。
 
-融合要求：
-参考人物必须自然融入场景，匹配场景图的光线、阴影、透视、清晰度、色温、镜头焦段和空间尺度。人物边缘自然，接触阴影合理，不能像贴上去。
-多人行为必须自然合理。每只可见手都必须属于明确人物；如果手接触别人，只允许自然轻放在肩膀、上臂、外侧前臂或上背部。不要出现抓脖子、碰脸、压胸、摸腰、贴胯、穿模、悬空手、来源不明的手或像被控制/拉扯的姿势。
-
-禁止项：
-不要保留场景图原人物的脸、五官、身份、衣服、鞋子、配饰或道具。不要把场景原脸和参考脸混合。不要只换发型不换五官。不要只换衣服不换脸。不要只换脸不换衣服。不要改变场景背景。不要丢失参考人物的脸部特征、配饰、道具、服装细节。不要把参考衣服简化成普通纯色T恤。不要让脸部模糊。不要增加面部噪点。不要让五官漂移。不要产生多余手指、扭曲手部、身体比例异常或衣服图案变形。不要让所有人物站成僵硬直线。不要让站姿人物双脚完全平行、双臂僵直、肩膀耸紧、眼神空洞。不要生成不合适触碰、来源不明的手、悬空手、穿过身体的手或像抓住/限制他人的动作。
-
-质量验收：
-替换后人物必须是参考图人物；脸部清晰自然；五官稳定；皮肤纹理干净；配饰和道具完整；人物与场景光影一致；画面高清、低噪点、真实自然。
+质量验收：替换后人物必须是参考图人物；脸部清晰稳定；服装、图案、鞋子、配饰完整；人物与场景光影、透视和接触阴影一致；姿势自然不站桩；画面高清、低噪点、真实自然。
 ```
-
-## Failure Repair Rules
-
-When the user reports a bad result, diagnose by failure type and strengthen only the relevant constraints:
-
-- Face did not transfer in `person-to-scene-replacement`: state that the scene person's original identity has zero retention and only provides location/pose if requested.
-- Face only partially transferred: state that partial blending is a failure; replace the full visible head/face/hair identity from the assigned reference while preserving only scene head angle, scale, occlusion, and lighting.
-- Base person changed in `garment-replacement`: state that the garment reference is clothing-only and all reference-person traits are forbidden.
-- Garment logo, pattern, or structure disappeared: enumerate the missing details as core garment construction that must be preserved.
-- Dressed-model outfit did not transfer in `person-to-scene-replacement`: state that scene clothing retention is zero; the assigned dressed-model reference provides the whole visible outfit, including shirt, pants, shoes, graphics, logos, front/back prints, wash texture, jewelry, chains, tattoos, and props.
-- Accessories or props disappeared: list each visible item individually and state that generic accessory preservation is insufficient.
-- Pose is wrong: explicitly set the pose policy to scene-pose, reference-pose, or scene-location-with-naturalized-micro-pose. Use the third option when the person is in the right place but looks stiff.
-- Person looks stiff or stands like a mannequin: preserve identity, outfit, background, location, scale, and broad orientation; only adjust shoulders, weight shift, feet angle, knees, head angle, arm relaxation, and hand placement into a casual scene-appropriate pose.
-- Behavior or touching is inappropriate: identify the owner of every hand, keep only safe casual contact on shoulder, upper arm, outer forearm, or upper back, and move unclear or awkward hands to the owner's side, pocket, or a neutral visible position.
-- Image became blurry or noisy: add face-level and garment-level sharpness checks, but do not add vague quality words without restating preservation rules.
-- Hands are distorted: state the exact hand policy: preserve base hands for garment replacement; inherit or preserve hands according to the pose policy for person replacement.
-
-Do not fix failures by making the prompt more decorative. Fix failures by narrowing roles, edit areas, inheritance rules, and forbidden changes.
