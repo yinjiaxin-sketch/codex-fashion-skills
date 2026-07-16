@@ -1,6 +1,6 @@
 ---
 name: image-edit-director
-description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, garment source priority, old garment detail removal, preventing reference/target detail migration, accessories, props, face clarity, single-image output, or preventing models from mixing image roles.
+description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, garment source priority, viewpoint-specific garment feature filtering, old garment detail removal, preventing reference/target detail migration, accessories, props, face clarity, single-image output, or preventing models from mixing image roles.
 ---
 
 # Image Edit Director
@@ -19,6 +19,7 @@ Always optimize for:
 - locking what may change and what must not change
 - preserving or replacing face identity according to the selected mode
 - preserving garment category, silhouette, length, fit, graphic, logo, print, fabric, seams, hem, and construction details
+- inheriting only garment details that are visible and valid for the target viewpoint, instead of copying front/back/side details across views
 - preserving scene target pose, body action, hand gesture, head angle, and explicitly requested scene-worn accessories such as caps, hats, sunglasses, glasses, watches, or handheld props
 - preventing stiff mannequin poses in scene replacement
 - preventing accidental inheritance from the wrong image
@@ -114,6 +115,32 @@ For pants replacement, explicitly name both sides of the boundary:
 If a model output keeps the old garment's color or details, diagnose it as `old garment leakage`. Repair by saying the old target garment may provide only the body-area mask and pose-fit boundary; all visible garment design details must be replaced by the garment reference.
 
 If a model output changes shoes, hands, upper garments, background, or person identity, diagnose it as `reference non-garment leakage`. Repair by saying the garment reference provides no shoes, no body, no pose, no background, no upper garment, and no model identity; restore those areas from the base target image.
+
+## Viewpoint Feature Gate Protocol
+
+Use this whenever garment references include front, back, side, flat-lay, or multiple colorway images. Do not treat all garment references as one merged detail pool.
+
+Before writing the final prompt, create a viewpoint feature map:
+
+- `front-view allowed features`: only details visibly present on the front reference and valid on the target front view.
+- `back-view allowed features`: only details visibly present on the back reference and valid on the target back view.
+- `side/three-quarter allowed features`: only details that would physically sit on the visible side panel for that viewpoint.
+- `global garment features`: color, fabric, broad silhouette, garment length, leg width, hem width, and fabric weight may transfer across views.
+- `view-locked features`: pockets, zippers, side lines, drawstrings, fly/crotch placket, buttons, back pockets, back yoke, center seams, labels, and graphics may not transfer to a different view unless they would be physically visible there.
+
+Every prompt must include an explicit absence list when a likely wrong feature could be invented:
+
+- If the back reference has no side line, write: `back-view side line retention = 0%; do not add side silver lines on the back view`.
+- If the front reference has no fly, zipper, button, drawstring, hanging tab, logo, or crotch decoration, write: `front crotch/fly extra detail retention = 0%; keep the front crotch area plain except natural fabric seam and folds`.
+- If a side feature is only partly visible, write that it may appear only on the physically visible outer side seam, not on the center front, center back, crotch, or inner leg.
+
+For pants replacement, use these gates:
+
+- Front target: inherit front waistband, front pockets, front leg shape, visible side lines only if present in the front reference. Do not add back pockets, back yoke, back seams, or back-only pocket flaps.
+- Back target: inherit back waistband, back pockets, back center seam, back leg shape. Do not add front pockets, front fly, front crotch placket, front drawstring, or side lines if the back reference does not show them.
+- Side target: inherit only the side seam/side line if it is physically visible from the side angle. Do not duplicate side lines onto both front and back panels.
+
+If a result adds a detail that is absent from the selected viewpoint reference, diagnose it as `cross-view detail leakage`. Repair by naming the forbidden detail and the correct view source, for example: `the back reference has no side silver line, so remove all back-view side silver lines`.
 
 ## Single-Image Output Protocol
 
@@ -334,6 +361,7 @@ Diagnose the failure and strengthen only the relevant constraint:
 - garment became plain: require print scale, layout, color blocks, and graphic structure from reference
 - old garment leakage: old target garment color, pockets, zippers, seams, waistband, hem, graphics, fabric, and silhouette were incorrectly retained; old target garment retention must be `0%` except for replacement mask and body-pose fit boundary
 - reference non-garment leakage: reference shoes, reference model body, reference upper garment, flat-lay background, product border, or reference crop were incorrectly inherited; garment reference must provide only the target garment while base target shoes, hands, upper garment, accessories, background, crop, and lighting remain `100%`
+- cross-view detail leakage: a front/back/side-only detail was copied into the wrong viewpoint; remove details not visible in the selected viewpoint reference and keep only physically valid details for the target camera angle
 - base person changed in garment replacement: garment reference is clothing-only; base identity/body/pose/background retention is `100%`
 - output became two views or two models: final output must be one single image; keep the base target image's original person count, crop, viewpoint, background, pose, hands, shoes, and upper garment; delete any front/back pair, comparison panel, second model, duplicated model, or product display layout
 - dressed-model outfit did not transfer: scene clothing retention is `0%`; dressed-model outfit retention is `100%`
@@ -363,17 +391,19 @@ Use this skeleton after filling in task-specific image details:
 
 细节迁移锁定：target garment detail retention = 100%；old target garment detail retention = 0%；old target garment color/fabric/pocket/seam/zipper/logo/graphic/waistband/hem retention = 0%；base shoes / hands / non-target clothing / accessories / background retention = 100%；reference shoes / reference model / reference body / reference background retention = 0%。
 
+视角细节过滤：[列出当前目标视角：正面/背面/侧面/斜侧]。只继承该视角参考图中真实可见、并且物理上会出现在当前镜头角度的服装细节。正面细节不得搬到背面，背面细节不得搬到正面，侧边细节只能出现在可见外侧裤片/衣片。对参考图中没有出现但模型容易脑补的细节，必须明确写入禁止项。
+
 只允许修改：[目标服装区域]。不允许修改脸、五官、头发、皮肤、手、腿、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、光线或构图。
 
 必须保留：完整保留底图人物身份、脸部五官、发型、肤色、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、镜头角度、构图、光线方向、阴影关系和画面清晰度。
 
-必须继承：严格继承参考服装的类别、版型、剪裁、衣长、松紧、领口、肩线、袖型、袖口、下摆、面料质感、颜色、洗水质感、缝线、标签、Logo、文字、印花、图案、图案比例、图案位置、图案颜色层次和所有可见结构细节。
+必须继承：严格继承参考服装的类别、版型、剪裁、衣长、松紧、领口、肩线、袖型、袖口、下摆、面料质感、颜色、洗水质感、缝线、标签、Logo、文字、印花、图案、图案比例、图案位置、图案颜色层次和当前视角真实可见的结构细节。
 
 衣长锁定：[写明短版/常规/长版，以及衣摆落点]。不要把衣服拉长，不要改变成其他衣长。
 
 贴合要求：新服装必须自然贴合底图人物身体和姿势，符合人体结构、布料褶皱、透视、遮挡关系和原图光影。图案必须跟随布料曲面和褶皱，不漂浮、不像贴纸、不越界。
 
-禁止项：不要换脸，不要改五官，不要改发型，不要改肤色，不要改身体比例，不要改姿势或表情，不要改背景，不要让服装图案消失、简化、错位、变形，不要保留旧目标服装的颜色、口袋、缝线、拉链、腰头、裤脚、Logo、图案、面料或版型，不要把参考图的人物、鞋子、上衣、背景、平铺白底或商品图边界带入结果。
+禁止项：不要换脸，不要改五官，不要改发型，不要改肤色，不要改身体比例，不要改姿势或表情，不要改背景，不要让服装图案消失、简化、错位、变形，不要保留旧目标服装的颜色、口袋、缝线、拉链、腰头、裤脚、Logo、图案、面料或版型，不要把参考图的人物、鞋子、上衣、背景、平铺白底或商品图边界带入结果，不要新增当前视角参考图中不存在的拉链、纽扣、抽绳、挂件、标签、门襟、侧线、口袋、装饰或图案。
 
 质量验收：最终图必须仍然是底图人物本人；只有目标服装被替换；服装版型、衣长、图案、Logo、面料和边缘自然清晰；背景和光影保持底图一致；画面高清、低噪点、真实自然。
 ```

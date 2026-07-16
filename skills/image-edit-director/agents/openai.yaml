@@ -1,6 +1,6 @@
 interface:
   display_name: "Image Edit Director"
-  short_description: "Create strict prompts for garment, model-to-scene, face, scene pose, source priority, detail migration, single-image output, and group behavior edits."
-  default_prompt: "Use $image-edit-director to create a strict fashion image editing prompt with face, outfit, garment source priority, old garment detail removal, no reference non-garment leakage, scene pose, hand gesture, single-image output, no comparison panels, accessory ownership, and natural group behavior constraints."
+  short_description: "Create strict prompts for garment, model-to-scene, face, scene pose, source priority, viewpoint feature gates, detail migration, single-image output, and group behavior edits."
+  default_prompt: "Use $image-edit-director to create a strict fashion image editing prompt with face, outfit, garment source priority, viewpoint-specific garment feature filtering, old garment detail removal, no reference non-garment leakage, scene pose, hand gesture, single-image output, no comparison panels, accessory ownership, and natural group behavior constraints."
 policy:
   allow_implicit_invocation: true
