@@ -1,6 +1,6 @@
 ---
 name: image-edit-director
-description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, accessories, props, face clarity, single-image output, or preventing models from mixing image roles.
+description: Create strict, low-freedom image editing prompts for Lovart, Nano Banana Pro, and similar image models. Use when the user needs stable prompts for garment replacement, dressed-model-to-scene replacement, replacing a person into a scene, preserving or fully replacing identity, scene pose, body action, hand gestures, scene-worn accessories such as hats and sunglasses, background, clothing details, garment length, garment source priority, old garment detail removal, preventing reference/target detail migration, accessories, props, face clarity, single-image output, or preventing models from mixing image roles.
 ---
 
 # Image Edit Director
@@ -22,6 +22,7 @@ Always optimize for:
 - preserving scene target pose, body action, hand gesture, head angle, and explicitly requested scene-worn accessories such as caps, hats, sunglasses, glasses, watches, or handheld props
 - preventing stiff mannequin poses in scene replacement
 - preventing accidental inheritance from the wrong image
+- preventing old target garments, reference shoes, reference model body, flat-lay borders, or unrelated reference details from migrating into the final result
 - giving short repair prompts for likely failures
 
 Do not claim that a prompt can disable the image model's internal reasoning. Say only that the prompt should be followed literally and should not freely redesign the image.
@@ -74,6 +75,7 @@ For `garment-replacement`:
 - Base image provides final person identity, face, hair, skin, body proportion, pose, gesture, expression, accessories, lower garments, shoes, background, camera, lighting, shadow, and composition.
 - Garment reference provides only the specified garment: category, silhouette, fit, length, collar, shoulders, sleeves, hem, fabric, color, wash, seams, labels, logo, graphic, print, typography, pattern, embroidery, pockets, closures, tags, and construction details.
 - Garment reference must not provide face, hair, body, pose, gesture, expression, background, lighting, camera, or model identity.
+- The old target garment in the base image provides only the replacement region boundary and body-pose fit guide. Its color, fabric, pockets, seams, zippers, logos, graphics, waistband, hem, leg shape, wash, and decorative details must not be inherited unless the user explicitly asks to keep them.
 
 For `person-to-scene-replacement`:
 
@@ -81,6 +83,37 @@ For `person-to-scene-replacement`:
 - Person or dressed-model reference provides identity, full face, facial geometry, hair, skin tone, body traits, final outfit, shoes, accessories, tattoos, carried props, and styling.
 - If a scene target's face is visible, set `scene face retention = 0%`.
 - If using a dressed-model reference, set `scene clothing retention = 0%`.
+
+## Garment Source Priority And Detail Migration Protocol
+
+Use this protocol for every garment-replacement prompt, especially when the user provides flat-lay garments, front/back/side references, or target images that already contain a similar garment.
+
+Before writing the final prompt, create a source priority map:
+
+- `base target image`: final person, body pose, hand position, shoes, non-target clothing, accessories, background, camera, crop, lighting, shadow, and composition.
+- `old target garment`: replacement area boundary and body-contact guide only. It does not provide final garment design.
+- `garment reference`: the only source for the new garment's color, category, silhouette, fit, length, fabric, seams, pockets, zippers, waistband, hem, logo, print, graphic, wash, tags, and construction details.
+- `unused reference content`: any reference model, shoes, upper garment, background, flat-lay canvas, white border, mannequin, crop, or product-display layout that was not explicitly named as the target garment source.
+
+Every garment-replacement final prompt must include these hard retention values:
+
+- `garment reference detail retention = 100%`
+- `old target garment detail retention = 0%`
+- `old target garment color/fabric/pocket/seam/zipper/logo/graphic/waistband/hem retention = 0%`
+- `old target garment silhouette retention = 0% except body-pose fit boundary`
+- `base target shoes / hands / upper garment / accessories / background retention = 100%`
+- `reference shoes / reference model / reference body / reference background retention = 0%`
+- `flat-lay canvas / product border / comparison layout retention = 0%`
+
+For pants replacement, explicitly name both sides of the boundary:
+
+- Keep from the base target: upper garment, jacket hem overlap, hand-in-pocket pose, hands, shoes, leg stance, camera crop, background, lighting, and shadow.
+- Remove from the old pants: old color, old pocket shape, old side seams, old zippers, old waist construction, old hem shape, old fabric, old wrinkles, old logos, and old leg silhouette.
+- Inherit from the new pants reference: new color, new waistband, new pocket layout, new side line or zipper placement, new leg volume, new fabric texture, new hem, and front/back/side details that match the target viewpoint.
+
+If a model output keeps the old garment's color or details, diagnose it as `old garment leakage`. Repair by saying the old target garment may provide only the body-area mask and pose-fit boundary; all visible garment design details must be replaced by the garment reference.
+
+If a model output changes shoes, hands, upper garments, background, or person identity, diagnose it as `reference non-garment leakage`. Repair by saying the garment reference provides no shoes, no body, no pose, no background, no upper garment, and no model identity; restore those areas from the base target image.
 
 ## Single-Image Output Protocol
 
@@ -177,8 +210,12 @@ For flat-lay garment references, adapt the garment proportion to the base body b
 - base face retention = 100%
 - base body / pose retention = 100%
 - base background retention = 100%
+- base non-target clothing / shoes / hands / accessories retention = 100%
 - garment reference identity / body / pose / background retention = 0%
+- garment reference shoes / upper garment / model / flat-lay background retention = 0%
 - target garment detail retention = 100%
+- old target garment detail retention = 0%
+- old target garment may provide only the replacement mask, body contact, and pose-fit boundary
 - final output = one single image
 - base target image person count / crop / viewpoint retention = 100%
 - comparison layout / front-back pair / duplicated model = forbidden
@@ -295,6 +332,8 @@ Diagnose the failure and strengthen only the relevant constraint:
 - garment length wrong: restate the exact length category, hem location, and forbidden length extension
 - garment graphic missing: enumerate the graphic/logo/print as core garment identity
 - garment became plain: require print scale, layout, color blocks, and graphic structure from reference
+- old garment leakage: old target garment color, pockets, zippers, seams, waistband, hem, graphics, fabric, and silhouette were incorrectly retained; old target garment retention must be `0%` except for replacement mask and body-pose fit boundary
+- reference non-garment leakage: reference shoes, reference model body, reference upper garment, flat-lay background, product border, or reference crop were incorrectly inherited; garment reference must provide only the target garment while base target shoes, hands, upper garment, accessories, background, crop, and lighting remain `100%`
 - base person changed in garment replacement: garment reference is clothing-only; base identity/body/pose/background retention is `100%`
 - output became two views or two models: final output must be one single image; keep the base target image's original person count, crop, viewpoint, background, pose, hands, shoes, and upper garment; delete any front/back pair, comparison panel, second model, duplicated model, or product display layout
 - dressed-model outfit did not transfer: scene clothing retention is `0%`; dressed-model outfit retention is `100%`
@@ -320,6 +359,10 @@ Use this skeleton after filling in task-specific image details:
 
 图片角色：底图提供最终人物身份、脸部五官、发型、肤色、身材比例、姿势、手势、表情、非目标服装、鞋子、配饰、背景、镜头角度、构图、光线和阴影。服装参考图只提供目标服装本身，包括类别、版型、衣长、领口、肩线、袖型、下摆、面料、颜色、图案、Logo、文字、印花、结构和细节。
 
+来源优先级：底图优先提供人物、姿势、手、鞋、非目标服装、配饰、背景、光线、阴影、构图和裁切；旧目标服装只提供替换区域边界、身体贴合关系和姿势透视，不提供最终服装设计；服装参考图是新服装唯一来源；参考图中非目标服装、鞋子、人物、身体、姿势、背景、白底、商品图边界和展示构图继承率为 0%。
+
+细节迁移锁定：target garment detail retention = 100%；old target garment detail retention = 0%；old target garment color/fabric/pocket/seam/zipper/logo/graphic/waistband/hem retention = 0%；base shoes / hands / non-target clothing / accessories / background retention = 100%；reference shoes / reference model / reference body / reference background retention = 0%。
+
 只允许修改：[目标服装区域]。不允许修改脸、五官、头发、皮肤、手、腿、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、光线或构图。
 
 必须保留：完整保留底图人物身份、脸部五官、发型、肤色、身体比例、姿势、手势、表情、配饰、非目标服装、鞋子、背景、镜头角度、构图、光线方向、阴影关系和画面清晰度。
@@ -330,7 +373,7 @@ Use this skeleton after filling in task-specific image details:
 
 贴合要求：新服装必须自然贴合底图人物身体和姿势，符合人体结构、布料褶皱、透视、遮挡关系和原图光影。图案必须跟随布料曲面和褶皱，不漂浮、不像贴纸、不越界。
 
-禁止项：不要换脸，不要改五官，不要改发型，不要改肤色，不要改身体比例，不要改姿势或表情，不要改背景，不要让服装图案消失、简化、错位、变形，不要把参考图的人物、背景、平铺白底或商品图边界带入结果。
+禁止项：不要换脸，不要改五官，不要改发型，不要改肤色，不要改身体比例，不要改姿势或表情，不要改背景，不要让服装图案消失、简化、错位、变形，不要保留旧目标服装的颜色、口袋、缝线、拉链、腰头、裤脚、Logo、图案、面料或版型，不要把参考图的人物、鞋子、上衣、背景、平铺白底或商品图边界带入结果。
 
 质量验收：最终图必须仍然是底图人物本人；只有目标服装被替换；服装版型、衣长、图案、Logo、面料和边缘自然清晰；背景和光影保持底图一致；画面高清、低噪点、真实自然。
 ```
